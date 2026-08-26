@@ -32,6 +32,16 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# local auth keys
+/auth.json
+
+# local app data
+/data/*.sqlite
+/data/*.sqlite-journal
+/data/*.sqlite-wal
+/data/uploads/
 
 # vercel
 .vercel
