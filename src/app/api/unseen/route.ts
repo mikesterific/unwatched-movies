@@ -11,6 +11,16 @@ function numberParam(value: string | null): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function providersParam(value: string | null): string[] | undefined {
+  if (!value?.trim()) {
+    return undefined;
+  }
+  return value
+    .split(",")
+    .map((slug) => slug.trim())
+    .filter(Boolean);
+}
+
 export function GET(request: Request) {
   const url = new URL(request.url);
   const sort = url.searchParams.get("sort") as UnseenSort | null;
@@ -22,6 +32,7 @@ export function GET(request: Request) {
     yearMin: numberParam(url.searchParams.get("yearMin")),
     yearMax: numberParam(url.searchParams.get("yearMax")),
     ratingMin: numberParam(url.searchParams.get("ratingMin")),
+    providers: providersParam(url.searchParams.get("providers")),
     sort: sort ?? undefined,
     order: order === "asc" || order === "desc" ? order : undefined,
     page: numberParam(url.searchParams.get("page")),

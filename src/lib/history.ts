@@ -1,10 +1,17 @@
 import { parseNetflixCsv, type ParsedMovie } from "@/lib/csv";
 import {
   getDb,
+  getHistoryMeta,
+  type CatalogMovieRow,
   type WatchedTitleRow,
 } from "@/lib/db";
 import { pickAutoMatch, type MatchCandidate } from "@/lib/matching";
 import { normalizeTitle } from "@/lib/normalize";
+import {
+  extractPrimeViewingHistory,
+  isPrimeViewingHistoryCsv,
+  parsePrimeCsv,
+} from "@/lib/prime-csv";
 import { getTmdbApiKey, searchMovies } from "@/lib/tmdb";
 
 export type UploadSummary = {
@@ -124,17 +131,74 @@ async function resolveTitle(
   };
 }
 
+function laterWatchedAt(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): string | null {
+  if (!left) {
+    return right ?? null;
+  }
+  if (!right) {
+    return left;
+  }
+  const leftMs = Date.parse(left);
+  const rightMs = Date.parse(right);
+  if (Number.isNaN(leftMs) && Number.isNaN(rightMs)) {
+    return left > right ? left : right;
+  }
+  if (Number.isNaN(leftMs)) {
+    return right;
+  }
+  if (Number.isNaN(rightMs)) {
+    return left;
+  }
+  return leftMs >= rightMs ? left : right;
+}
+
+function mergeSourceFilename(previous: string | null | undefined, next: string): string {
+  const parts = (previous ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.includes(next)) {
+    parts.push(next);
+  }
+  return parts.join(", ");
+}
+
+function isZipBytes(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+}
+
+export async function importHistoryFile(input: {
+  filename: string;
+  bytes: Uint8Array;
+}): Promise<UploadSummary> {
+  const name = input.filename.toLowerCase();
+  const text =
+    name.endsWith(".zip") || isZipBytes(input.bytes)
+      ? await extractPrimeViewingHistory(input.bytes)
+      : new TextDecoder("utf-8").decode(input.bytes);
+  return importViewingCsv(text, input.filename);
+}
+
 export async function importViewingCsv(
   text: string,
   sourceFilename: string,
 ): Promise<UploadSummary> {
-  const parsed = parseNetflixCsv(text);
+  const parsed = isPrimeViewingHistoryCsv(text)
+    ? parsePrimeCsv(text)
+    : parseNetflixCsv(text);
   const db = getDb();
   const existingRows = db
     .prepare("SELECT * FROM watched_titles")
     .all() as WatchedTitleRow[];
   const existingByNormalized = new Map(
     existingRows.map((row) => [row.normalized_title, row]),
+  );
+  const mergedSource = mergeSourceFilename(
+    getHistoryMeta()?.source_filename,
+    sourceFilename,
   );
 
   const upsert = db.prepare(`
@@ -161,16 +225,20 @@ export async function importViewingCsv(
     candidates: MatchCandidate[];
   }>) => {
     for (const row of rows) {
+      const existing = existingByNormalized.get(normalizeTitle(row.rawTitle));
       upsert.run({
         rawTitle: row.rawTitle,
         normalizedTitle: normalizeTitle(row.rawTitle),
-        lastWatchedAt: row.watchedAt,
-        playCount: row.playCount,
+        lastWatchedAt: laterWatchedAt(existing?.last_watched_at, row.watchedAt),
+        playCount: Math.max(existing?.play_count ?? 0, row.playCount),
         tmdbId: row.tmdbId,
         status: row.status,
         candidatesJson: JSON.stringify(row.candidates),
       });
     }
+    const total = db
+      .prepare("SELECT COUNT(*) AS count FROM watched_titles")
+      .get() as { count: number };
     db.prepare(
       `
       INSERT INTO history_meta (
@@ -184,8 +252,8 @@ export async function importViewingCsv(
     `,
     ).run({
       uploadedAt: new Date().toISOString(),
-      sourceFilename,
-      movieRowCount: parsed.movies.length,
+      sourceFilename: mergedSource,
+      movieRowCount: total.count,
       droppedRowCount: parsed.dropped.length,
     });
   });
@@ -282,6 +350,62 @@ export function resolveMatch(input: {
   db.prepare(
     "UPDATE watched_titles SET status = 'matched', tmdb_id = ? WHERE id = ?",
   ).run(input.tmdbId, input.id);
+}
+
+export function markCatalogMovieWatched(tmdbId: number): { tmdbId: number; title: string } {
+  if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
+    throw new Error("A valid TMDB id is required.");
+  }
+
+  const db = getDb();
+  const movie = db
+    .prepare("SELECT * FROM catalog_movies WHERE tmdb_id = ?")
+    .get(tmdbId) as CatalogMovieRow | undefined;
+
+  if (!movie) {
+    throw new Error("That title is not in a loaded catalog.");
+  }
+
+  const alreadyMatched = db
+    .prepare("SELECT id FROM watched_titles WHERE tmdb_id = ? AND status = 'matched'")
+    .get(tmdbId) as { id: number } | undefined;
+  if (alreadyMatched) {
+    return { tmdbId: movie.tmdb_id, title: movie.title };
+  }
+
+  const candidates = JSON.stringify([
+    {
+      tmdbId: movie.tmdb_id,
+      title: movie.title,
+      originalTitle: movie.original_title,
+      releaseYear: movie.release_year,
+      posterPath: movie.poster_path,
+      popularity: movie.popularity,
+    },
+  ]);
+
+  db.prepare(
+    `
+    INSERT INTO watched_titles (
+      raw_title, normalized_title, last_watched_at, play_count,
+      tmdb_id, status, candidates_json
+    ) VALUES (?, ?, ?, 1, ?, 'matched', ?)
+    ON CONFLICT(normalized_title) DO UPDATE SET
+      last_watched_at = excluded.last_watched_at,
+      play_count = watched_titles.play_count + 1,
+      tmdb_id = excluded.tmdb_id,
+      status = 'matched',
+      candidates_json = excluded.candidates_json
+  `,
+  ).run(
+    movie.title,
+    normalizeTitle(movie.title),
+    new Date().toISOString(),
+    movie.tmdb_id,
+    candidates,
+  );
+
+  return { tmdbId: movie.tmdb_id, title: movie.title };
 }
 
 export function rematchAgainstCatalog(): { reviewed: number; matched: number } {

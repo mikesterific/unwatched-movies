@@ -10,7 +10,7 @@ export default defineConfig({
     fileParallelism: false,
     server: {
       deps: {
-        external: ["better-sqlite3"],
+        external: ["better-sqlite3", "playwright"],
       },
     },
   },

@@ -47,9 +47,9 @@ export function AppShell({
       </header>
       <main className="mx-auto w-full max-w-6xl px-6 py-8">{children}</main>
       <footer className="mx-auto max-w-6xl px-6 pb-10 text-xs text-muted">
-        Watch availability is provided by JustWatch via TMDB. This is an
-        approximation of the US Netflix movie catalog, not Netflix&apos;s own
-        inventory.
+        Watch availability is provided by JustWatch via TMDB. Catalogs are an
+        approximation of US Netflix, Prime Video, Disney+, and HBO Max — not each
+        service&apos;s private inventory.
       </footer>
     </div>
   );

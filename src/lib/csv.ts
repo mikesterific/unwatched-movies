@@ -6,6 +6,7 @@ const TV_PATTERNS = [
   /\bseason\s+\d+\s*:\s*episode\s+\d+/i,
   /:\s*limited series\b/i,
   /:\s*series\s+\d+/i,
+  /\s+-\s+season\s+\d+/i,
 ];
 
 const CLIP_TYPES = new Set([
@@ -20,7 +21,7 @@ const CLIP_TYPES = new Set([
   "FEATURETTE",
 ]);
 
-const MIN_WATCH_SECONDS = 120;
+export const MIN_WATCH_SECONDS = 120;
 
 export type DropReason = "empty" | "tv" | "clip" | "short";
 
@@ -40,13 +41,13 @@ export type ParseNetflixCsvResult = {
   totalRows: number;
 };
 
-type CsvRecord = Record<string, string>;
+export type CsvRecord = Record<string, string>;
 
 function normalizeHeader(header: string): string {
   return header.replace(/^\uFEFF/, "").trim().toLowerCase();
 }
 
-function getField(row: CsvRecord, ...names: string[]): string {
+export function getField(row: CsvRecord, ...names: string[]): string {
   for (const name of names) {
     const match = Object.entries(row).find(
       ([key]) => normalizeHeader(key) === name,

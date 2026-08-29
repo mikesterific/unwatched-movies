@@ -3,10 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDb, getDb } from "@/lib/db";
-import { projectHistoryInfo } from "@/lib/project-csv";
+import { projectHistoryInfo, projectPrimeHistoryInfo } from "@/lib/project-csv";
 
 describe("project viewing CSV", () => {
   const previousCsv = process.env.PROJECT_HISTORY_CSV;
+  const previousPrime = process.env.PROJECT_PRIME_HISTORY;
   const previousDb = process.env.UNSEEN_DB_PATH;
 
   beforeEach(() => {
@@ -20,6 +21,8 @@ describe("project viewing CSV", () => {
     closeDb();
     if (previousCsv) process.env.PROJECT_HISTORY_CSV = previousCsv;
     else delete process.env.PROJECT_HISTORY_CSV;
+    if (previousPrime) process.env.PROJECT_PRIME_HISTORY = previousPrime;
+    else delete process.env.PROJECT_PRIME_HISTORY;
     if (previousDb) process.env.UNSEEN_DB_PATH = previousDb;
     else delete process.env.UNSEEN_DB_PATH;
   });
@@ -30,5 +33,13 @@ describe("project viewing CSV", () => {
     process.env.PROJECT_HISTORY_CSV = filePath;
     expect(projectHistoryInfo().present).toBe(true);
     expect(projectHistoryInfo().filename).toBe(path.basename(filePath));
+  });
+
+  it("reports when a Prime viewing-history file is present", () => {
+    const filePath = path.join(tmpdir(), `prime-${Date.now()}.csv`);
+    writeFileSync(filePath, "Title,Seconds Viewed\nThe Matrix,100\n");
+    process.env.PROJECT_PRIME_HISTORY = filePath;
+    expect(projectPrimeHistoryInfo().present).toBe(true);
+    expect(projectPrimeHistoryInfo().filename).toBe(path.basename(filePath));
   });
 });

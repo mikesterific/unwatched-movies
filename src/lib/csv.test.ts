@@ -23,6 +23,7 @@ describe("classifyViewingRow", () => {
       }),
     ).toBe("tv");
     expect(classifyViewingRow({ title: "Bridgerton: Limited Series" })).toBe("tv");
+    expect(classifyViewingRow({ title: "Fake Show - Season 3" })).toBe("tv");
   });
 
   it("drops trailers and very short plays", () => {

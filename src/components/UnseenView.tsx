@@ -15,6 +15,12 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
   const [ratingMin, setRatingMin] = useState("");
   const [sort, setSort] = useState<UnseenSort>("popularity");
   const [page, setPage] = useState(1);
+  const [providers, setProviders] = useState<string[]>([]);
+  const [markingId, setMarkingId] = useState<number | null>(null);
+
+  function providerQuery(nextProviders: string[]) {
+    return nextProviders.join(",");
+  }
 
   async function load(next: {
     q?: string;
@@ -23,6 +29,7 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
     ratingMin?: string;
     sort?: UnseenSort;
     page?: number;
+    providers?: string[];
   }) {
     const nextQ = next.q ?? q;
     const nextGenre = next.genre ?? genre;
@@ -30,6 +37,7 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
     const nextRatingMin = next.ratingMin ?? ratingMin;
     const nextSort = next.sort ?? sort;
     const nextPage = next.page ?? page;
+    const nextProviders = next.providers ?? providers;
     const params = new URLSearchParams({
       page: String(nextPage),
       pageSize: String(PAGE_SIZE),
@@ -40,6 +48,7 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
     if (nextGenre) params.set("genre", nextGenre);
     if (nextYearMin) params.set("yearMin", nextYearMin);
     if (nextRatingMin) params.set("ratingMin", nextRatingMin);
+    if (nextProviders.length) params.set("providers", providerQuery(nextProviders));
     try {
       const response = await fetch(`/api/unseen?${params}`);
       setData((await response.json()) as UnseenPage);
@@ -49,6 +58,36 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
     }
   }
 
+  async function markWatched(tmdbId: number) {
+    setMarkingId(tmdbId);
+    setError(null);
+    try {
+      const response = await fetch("/api/unseen/watched", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tmdbId }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setError(payload.error ?? "Could not mark that movie as watched.");
+        return;
+      }
+      const lastOnPage = data.items.length === 1 && page > 1;
+      const nextPage = lastOnPage ? page - 1 : page;
+      if (lastOnPage) {
+        setPage(nextPage);
+      }
+      await load({ page: nextPage });
+    } catch {
+      setError("Could not mark that movie as watched.");
+    } finally {
+      setMarkingId(null);
+    }
+  }
+
+  const exportHref = providers.length
+    ? `/api/unseen/export?providers=${encodeURIComponent(providerQuery(providers))}`
+    : "/api/unseen/export";
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
   return (
@@ -57,19 +96,18 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
         <div>
           <h2 className="font-display text-2xl">Movies you have not watched</h2>
           <p className="text-sm text-muted">
-            {data.total} titles on Netflix US minus your
-            CSV.
+            {data.total} titles on selected US services minus titles you have watched.
           </p>
         </div>
         <a
-          href="/api/unseen/export"
+          href={exportHref}
           className="rounded-full border border-line px-4 py-2 text-sm text-accent-2 hover:bg-paper"
         >
           Export CSV
         </a>
       </div>
 
-      <div className="grid gap-3 rounded-2xl border border-line bg-paper p-4 md:grid-cols-5">
+      <div className="grid gap-3 rounded-2xl border border-line bg-paper p-4 md:grid-cols-6">
         <label className="text-sm">
           <span className="text-muted">Search</span>
           <input
@@ -120,12 +158,12 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
           />
         </label>
         <label className="text-sm">
-          <span className="text-muted">Min rating</span>
+          <span className="text-muted">Min Metascore</span>
           <input
             type="number"
             min="0"
-            max="10"
-            step="0.1"
+            max="100"
+            step="1"
             value={ratingMin}
             onChange={(event) => {
               const value = event.target.value;
@@ -134,8 +172,11 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
               void load({ ratingMin: value, page: 1 });
             }}
             className="mt-1 w-full rounded-lg border border-line bg-paper-2 px-3 py-2"
-            placeholder="7"
+            placeholder="70"
           />
+          <span className="mt-1 block text-xs text-muted">
+            When set, unrated titles are hidden
+          </span>
         </label>
         <label className="text-sm">
           <span className="text-muted">Sort</span>
@@ -150,19 +191,41 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
           >
             <option value="popularity">Popularity</option>
             <option value="year">Year</option>
-            <option value="rating">Rating</option>
+            <option value="rating">Metascore</option>
             <option value="title">Title</option>
           </select>
         </label>
+        <fieldset className="text-sm">
+          <legend className="text-muted">Services</legend>
+          <div className="mt-1 space-y-1">
+            {data.services.map((service) => (
+              <label key={service.slug} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={providers.includes(service.slug)}
+                  onChange={() => {
+                    const next = providers.includes(service.slug)
+                      ? providers.filter((slug) => slug !== service.slug)
+                      : [...providers, service.slug];
+                    setProviders(next);
+                    setPage(1);
+                    void load({ providers: next, page: 1 });
+                  }}
+                />
+                <span>{service.name}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
       </div>
 
       {error && <p className="text-sm text-accent">{error}</p>}
 
       {data.total === 0 ? (
         <p className="rounded-2xl border border-dashed border-line p-8 text-muted">
-          Nothing to show yet. Refresh the catalog and upload your viewing CSV
-          on Setup. If the catalog is loaded and this is empty, every current
-          title is marked watched.
+          Nothing to show yet. Refresh one or more catalogs and import your
+          Netflix viewing CSV on Setup. If catalogs are loaded and this is empty,
+          every current title is marked watched.
         </p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -184,7 +247,7 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
                   No art
                 </div>
               )}
-              <div className="min-w-0">
+              <div className="flex min-w-0 flex-1 flex-col">
                 <a
                   href={movie.tmdbUrl}
                   target="_blank"
@@ -194,13 +257,46 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
                   {movie.title}
                 </a>
                 <p className="mt-1 text-sm text-muted">
-                  {[movie.year, movie.voteAverage ? movie.voteAverage.toFixed(1) : null]
+                  {[movie.year, movie.rating != null ? String(movie.rating) : null]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
                 <p className="mt-2 line-clamp-2 text-xs text-muted">
                   {movie.genres.join(" / ") || "Uncategorized"}
                 </p>
+                {movie.services.length > 0 && (
+                  <p className="mt-2 flex flex-wrap gap-1">
+                    {movie.services.map((service) =>
+                      service.watchUrl ? (
+                        <a
+                          key={service.slug}
+                          href={service.watchUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={`Open ${movie.title} on ${service.name}`}
+                          className="rounded-full bg-paper-2 px-2 py-0.5 text-[11px] text-accent-2 hover:bg-line hover:underline"
+                        >
+                          {service.name}
+                        </a>
+                      ) : (
+                        <span
+                          key={service.slug}
+                          className="rounded-full bg-paper-2 px-2 py-0.5 text-[11px] text-accent-2"
+                        >
+                          {service.name}
+                        </span>
+                      ),
+                    )}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  disabled={markingId === movie.tmdbId}
+                  onClick={() => void markWatched(movie.tmdbId)}
+                  className="mt-3 self-start rounded-full border border-line px-3 py-1.5 text-xs text-accent-2 hover:bg-paper-2 disabled:opacity-50"
+                >
+                  {markingId === movie.tmdbId ? "Saving…" : "Mark watched"}
+                </button>
               </div>
             </li>
           ))}

@@ -43,6 +43,14 @@ yarn-error.log*
 /data/*.sqlite-wal
 /data/uploads/
 
+# Amazon Prime Video privacy export (watch titles, devices, location)
+/Prime Video.zip
+/PrimeVideoViewingHistory.csv
+
+# Netflix headed-Chrome session (Job Assistant pattern)
+/.auth/
+/.chrome-cdp-netflix/
+
 # vercel
 .vercel
 

@@ -1,9 +1,10 @@
 import { AUTH_KEY_HELP, getStoredTmdbApiKey } from "@/lib/auth";
 import type { MatchCandidate } from "@/lib/matching";
+import { NETFLIX_PROVIDER_ID } from "@/lib/services";
 
 const TMDB_BASE = "https://api.themoviedb.org/3";
 export const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w185";
-export const NETFLIX_PROVIDER_ID = 8;
+export { NETFLIX_PROVIDER_ID };
 export const WATCH_REGION = "US";
 const MAX_DISCOVER_PAGES = 500;
 
@@ -137,18 +138,23 @@ export async function searchMovies(query: string): Promise<MatchCandidate[]> {
   return (data.results ?? []).slice(0, 8).map(toCandidate);
 }
 
-export async function fetchUsNetflixCatalog(
-  onProgress?: (page: number, totalPages: number) => void,
-): Promise<TmdbMovie[]> {
-  const first = await tmdbGet<DiscoverResponse>("/discover/movie", {
-    with_watch_providers: String(NETFLIX_PROVIDER_ID),
+function discoverParams(providerId: number, page: string): Record<string, string> {
+  return {
+    with_watch_providers: String(providerId),
     watch_region: WATCH_REGION,
     with_watch_monetization_types: "flatrate",
     include_adult: "false",
     language: "en-US",
     sort_by: "popularity.desc",
-    page: "1",
-  });
+    page,
+  };
+}
+
+export async function fetchUsCatalog(
+  providerId: number,
+  onProgress?: (page: number, totalPages: number) => void,
+): Promise<TmdbMovie[]> {
+  const first = await tmdbGet<DiscoverResponse>("/discover/movie", discoverParams(providerId, "1"));
 
   const totalPages = Math.min(first.total_pages ?? 1, MAX_DISCOVER_PAGES);
   onProgress?.(1, totalPages);
@@ -160,15 +166,10 @@ export async function fetchUsNetflixCatalog(
 
   const remainingPages = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
   await mapPool(remainingPages, 4, async (page) => {
-    const data = await tmdbGet<DiscoverResponse>("/discover/movie", {
-      with_watch_providers: String(NETFLIX_PROVIDER_ID),
-      watch_region: WATCH_REGION,
-      with_watch_monetization_types: "flatrate",
-      include_adult: "false",
-      language: "en-US",
-      sort_by: "popularity.desc",
-      page: String(page),
-    });
+    const data = await tmdbGet<DiscoverResponse>(
+      "/discover/movie",
+      discoverParams(providerId, String(page)),
+    );
     for (const result of data.results ?? []) {
       movies.set(result.id, toMovie(result));
     }
@@ -176,6 +177,12 @@ export async function fetchUsNetflixCatalog(
   });
 
   return [...movies.values()];
+}
+
+export async function fetchUsNetflixCatalog(
+  onProgress?: (page: number, totalPages: number) => void,
+): Promise<TmdbMovie[]> {
+  return fetchUsCatalog(NETFLIX_PROVIDER_ID, onProgress);
 }
 
 export function posterUrl(posterPath: string | null): string | null {
