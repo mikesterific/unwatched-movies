@@ -13,7 +13,7 @@ const sans = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: "Unseen",
+  title: "Unseen Movies",
   description: "US streaming movies you have not watched, from your official viewing history.",
 };
 

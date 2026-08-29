@@ -22,7 +22,7 @@ export function AppShell({
               Local catalog
             </p>
             <h1 className="font-display text-3xl tracking-tight">
-              Unseen
+              Unseen Movies
             </h1>
           </div>
           <nav className="flex gap-2 text-sm">

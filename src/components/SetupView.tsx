@@ -1,9 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { AppStatus } from "@/lib/types";
 
 const AUTH_COMMAND = "npm run auth:netflix";
+const NETFLIX_ACTIVITY = "https://www.netflix.com/WiViewingActivity";
+const NETFLIX_HELP = "https://help.netflix.com/en/node/101917";
+const AMAZON_DATA_REQUEST =
+  "https://www.amazon.com/hz/privacy-central/data-requests/preview.html";
+const TMDB_API = "https://www.themoviedb.org/settings/api";
+
+function ExternalLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="text-accent-2 underline decoration-accent-2/40 underline-offset-2 hover:decoration-accent-2"
+    >
+      {children}
+    </a>
+  );
+}
 
 function formatWhen(value: string | null | undefined) {
   if (!value) {
@@ -239,25 +263,34 @@ export function SetupView({ initialStatus }: { initialStatus: AppStatus }) {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+    <div className="grid gap-6 lg:grid-cols-2">
       <section className="rounded-2xl border border-line bg-paper p-6">
-        <h2 className="font-display text-2xl">1. Refresh watch history</h2>
+        <h2 className="font-display text-2xl">1. Netflix watch history</h2>
         <p className="mt-3 text-sm text-muted">
-          Sign in once in headed Chrome, then this app clicks the official Viewing
-          activity <span className="text-foreground">Download all</span> button
-          and imports the CSV. It does not use hidden Netflix endpoints.
+          Import the official Viewing activity CSV. Netflix&apos;s steps:{" "}
+          <ExternalLink href={NETFLIX_HELP}>viewing history help</ExternalLink>.
         </p>
+        <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-muted">
+          <li>
+            In a terminal run <code className="text-accent-2">{AUTH_COMMAND}</code>
+            {status.netflixAuth.present
+              ? " — a saved session is present."
+              : " — no saved session yet."}{" "}
+            Prefer email and password; Google sign-in often fails in Chromium.
+          </li>
+          <li>Pick the profile you want tracked, then finish login and 2FA.</li>
+          <li>
+            Click <span className="text-foreground">Refresh watch history</span>.
+            The app opens{" "}
+            <ExternalLink href={NETFLIX_ACTIVITY}>Viewing activity</ExternalLink>{" "}
+            and clicks official <span className="text-foreground">Download all</span>.
+          </li>
+        </ol>
         <p className="mt-3 text-sm text-muted">
-          Prime Video uses Amazon&apos;s official privacy ZIP. Import{" "}
-          <code className="text-accent-2">Viewing History.csv</code> from that
-          archive, or the ZIP itself. Watches merge into the same seen list.
-        </p>
-        <p className="mt-3 text-sm text-muted">
-          One-time login:{" "}
-          <code className="text-accent-2">{AUTH_COMMAND}</code>
-          {status.netflixAuth.present
-            ? " — a saved session is present."
-            : " — no saved session yet."}
+          Or download it yourself: open{" "}
+          <ExternalLink href={NETFLIX_ACTIVITY}>Viewing activity</ExternalLink>,
+          scroll to <span className="text-foreground">Download all</span>, then
+          upload the CSV below.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <button
@@ -288,6 +321,54 @@ export function SetupView({ initialStatus }: { initialStatus: AppStatus }) {
               {busy === "upload" ? "Loading project CSV…" : `Load ${status.projectCsv.filename}`}
             </button>
           )}
+        </div>
+        <label className="mt-6 block">
+          <span className="text-sm text-muted">Upload a Netflix CSV</span>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            className="mt-2 block w-full rounded-xl border border-line bg-paper-2 px-3 py-3 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-accent file:px-4 file:py-2 file:text-white"
+            disabled={busy !== null}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) {
+                void uploadHistory(file);
+              }
+            }}
+          />
+        </label>
+      </section>
+
+      <section className="rounded-2xl border border-line bg-paper p-6">
+        <h2 className="font-display text-2xl">2. Prime Video watch history</h2>
+        <p className="mt-3 text-sm text-muted">
+          Amazon does not offer an instant CSV. Request an official privacy ZIP
+          (often a few days; Amazon may say up to 30).
+        </p>
+        <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-muted">
+          <li>
+            Sign in and open{" "}
+            <ExternalLink href={AMAZON_DATA_REQUEST}>Request your data</ExternalLink>
+            . Or: Account &amp; Lists → Your Account → Request your data.
+          </li>
+          <li>
+            Request <span className="text-foreground">Prime Video</span> data and
+            confirm the email.
+          </li>
+          <li>Download the ZIP when Amazon says it is ready.</li>
+          <li>
+            Upload the ZIP here. The app reads{" "}
+            <code className="text-accent-2">
+              Your Prime Video Viewing Activity/Viewing History.csv
+            </code>
+            .
+          </li>
+        </ol>
+        <p className="mt-3 text-sm text-muted">
+          Use <code className="text-accent-2">Viewing History.csv</code> only.
+          Skip Watch Events, Purchases and Rentals, and Promotional Trailers.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
           {status.projectPrime.present && (
             <button
               type="button"
@@ -301,10 +382,9 @@ export function SetupView({ initialStatus }: { initialStatus: AppStatus }) {
             </button>
           )}
         </div>
-
         <label className="mt-6 block">
           <span className="text-sm text-muted">
-            Or upload a Netflix CSV or Prime Video ZIP
+            Upload the Prime Video ZIP or Viewing History.csv
           </span>
           <input
             type="file"
@@ -321,54 +401,21 @@ export function SetupView({ initialStatus }: { initialStatus: AppStatus }) {
         </label>
       </section>
 
-      <section className="rounded-2xl border border-line bg-paper p-6">
-        <h2 className="font-display text-2xl">2. Refresh US catalogs</h2>
-        <p className="mt-3 text-sm text-muted">
-          Pulls movies listed on each selected service from TMDB / JustWatch and
-          stores them locally. Metascores are a separate OMDb pass on the movies
-          you already have — you do not need to refresh TMDB again to get ratings.
-        </p>
-        <fieldset className="mt-4 space-y-2">
-          <legend className="text-sm text-muted">Services</legend>
-          {status.services.map((service) => (
-            <label key={service.slug} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={selected.includes(service.slug)}
-                onChange={() => toggleService(service.slug)}
-                disabled={busy !== null}
-              />
-              <span>{service.name}</span>
-            </label>
-          ))}
-        </fieldset>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => void refreshSelected()}
-            disabled={busy !== null}
-            className="rounded-full bg-accent px-5 py-2.5 text-sm text-white disabled:opacity-50"
-          >
-            {busy === "catalog" ? "Refreshing catalogs…" : "Refresh selected"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void loadSample()}
-            disabled={busy !== null}
-            className="rounded-full border border-line px-5 py-2.5 text-sm disabled:opacity-50"
-          >
-            Load sample catalog
-          </button>
-          <button
-            type="button"
-            onClick={() => void fetchMetascores()}
-            disabled={busy !== null || !status.omdbConfigured}
-            className="rounded-full border border-line px-5 py-2.5 text-sm disabled:opacity-50"
-          >
-            {busy === "ratings" ? "Fetching Metascores…" : "Fetch Metascores"}
-          </button>
-        </div>
-        <label className="mt-5 block">
+      <section className="rounded-2xl border border-line bg-paper p-6 lg:col-span-2">
+        <h2 className="font-display text-2xl">3. Refresh US catalogs</h2>
+        <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-muted">
+          <li>
+            Get a free key from{" "}
+            <ExternalLink href={TMDB_API}>TMDB API settings</ExternalLink>, paste
+            it below, and save. A v3 key or v4 token works.
+          </li>
+          <li>Select the services you subscribe to.</li>
+          <li>
+            Click <span className="text-foreground">Refresh selected</span>.
+            Metascores are a later OMDb pass on movies you already have.
+          </li>
+        </ol>
+        <label className="mt-5 block max-w-md">
           <span className="text-sm text-muted">TMDB API key</span>
           <input
             type="password"
@@ -411,6 +458,52 @@ export function SetupView({ initialStatus }: { initialStatus: AppStatus }) {
             <code>.env</code> for Metacritic scores.
           </p>
         )}
+        <fieldset className="mt-5 space-y-2">
+          <legend className="text-sm text-muted">Services</legend>
+          {status.services.map((service) => (
+            <label key={service.slug} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={selected.includes(service.slug)}
+                onChange={() => toggleService(service.slug)}
+                disabled={busy !== null}
+              />
+              <span>{service.name}</span>
+            </label>
+          ))}
+        </fieldset>
+        <p className="mt-3 text-sm text-muted">
+          Disney+ and HBO Max are catalogs only. They have no official
+          watch-history export, so Unseen Movies subtracts Netflix and Prime watches
+          (and titles you mark). A movie you only watched on Disney+ or Max can
+          still show as unseen.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => void refreshSelected()}
+            disabled={busy !== null}
+            className="rounded-full bg-accent px-5 py-2.5 text-sm text-white disabled:opacity-50"
+          >
+            {busy === "catalog" ? "Refreshing catalogs…" : "Refresh selected"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void loadSample()}
+            disabled={busy !== null}
+            className="rounded-full border border-line px-5 py-2.5 text-sm disabled:opacity-50"
+          >
+            Load sample catalog
+          </button>
+          <button
+            type="button"
+            onClick={() => void fetchMetascores()}
+            disabled={busy !== null || !status.omdbConfigured}
+            className="rounded-full border border-line px-5 py-2.5 text-sm disabled:opacity-50"
+          >
+            {busy === "ratings" ? "Fetching Metascores…" : "Fetch Metascores"}
+          </button>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-line bg-paper p-6 lg:col-span-2">

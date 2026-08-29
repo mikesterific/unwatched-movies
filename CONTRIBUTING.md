@@ -1,11 +1,12 @@
 # Contributing
 
-Thanks for wanting to help. Unseen is a local Next.js app: official watch-history
+Thanks for wanting to help. Unseen Movies is a local Next.js app: official watch-history
 exports in, TMDB / JustWatch catalogs in, unseen movies out.
 
 ## Before you start
 
-- Read the [README](README.md) for setup and the [code of conduct](CODE_OF_CONDUCT.md).
+- Read the [README](README.md) setup steps (install, TMDB key, Netflix CSV,
+  Prime ZIP, catalogs) and the [code of conduct](CODE_OF_CONDUCT.md).
 - Open an issue first for large features or new streaming services. Small bug
   fixes and docs can go straight to a pull request.
 - Do not commit personal watch history, `auth.json`, `.env`, `.auth/`, or SQLite

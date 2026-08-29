@@ -2,7 +2,7 @@
 
 ## This is a local app
 
-Unseen runs on your machine. It stores API keys in `auth.json`, optional
+Unseen Movies runs on your machine. It stores API keys in `auth.json`, optional
 session cookies in `.auth/`, watch history in `data/`, and uploaded CSVs in
 `data/uploads/`. Those paths are gitignored on purpose. Do not commit them.
 

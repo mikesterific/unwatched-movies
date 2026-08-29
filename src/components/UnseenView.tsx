@@ -275,6 +275,10 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
             ))}
           </div>
         </fieldset>
+        <p className="text-xs text-muted md:col-span-6">
+          Filters by where a title is available. Watch history is Netflix and
+          Prime only.
+        </p>
       </div>
 
       {error && <p className="text-sm text-accent">{error}</p>}
