@@ -41,7 +41,11 @@ yarn-error.log*
 /data/*.sqlite
 /data/*.sqlite-journal
 /data/*.sqlite-wal
+/data/*.sqlite-shm
 /data/uploads/
+
+# Personal Netflix export (keep a local copy; never commit)
+/NetflixViewingHistory.csv
 
 # Amazon Prime Video privacy export (watch titles, devices, location)
 /Prime Video.zip

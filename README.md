@@ -1,33 +1,66 @@
-# Unseen on Netflix
+# Unseen
 
-Local web app that subtracts your official Netflix viewing-activity CSV from cached US catalogs for Netflix, Prime Video, Disney+, and HBO Max (TMDB + JustWatch).
+Local web app that subtracts your official watch history from cached US catalogs
+for Netflix, Prime Video, Disney+, and HBO Max.
 
-It does not scrape streaming sites or hidden viewing-activity endpoints. Catalogs come from TMDB. Watch history comes from Netflix’s official **Download all** CSV and Amazon’s official Prime Video privacy ZIP.
+Catalogs come from [TMDB](https://www.themoviedb.org/) (availability via
+JustWatch). History comes from Netflix’s official **Download all** CSV and
+Amazon’s official Prime Video privacy ZIP. The app does not scrape streaming
+sites or hidden viewing-activity APIs.
+
+A matched title is treated as seen on every service.
+
+## Requirements
+
+- [Node.js](https://nodejs.org/) 22.5 or newer (`node:sqlite`)
+- A free [TMDB API key](https://www.themoviedb.org/settings/api) for live catalogs
+- Optional: [OMDb](https://www.omdbapi.com/) key for Metascores
+- Optional: headed Chrome for one-time Netflix sign-in
 
 ## Setup
 
-1. Copy `auth.example.json` to `auth.json`, or paste a key on the Setup screen.
-2. Create a free [TMDB API key](https://www.themoviedb.org/settings/api) and put it in `tmdbApiKey`. A v4 read-access token also works. `auth.json` is gitignored.
-3. Optional: put an [OMDb](https://www.omdbapi.com/) API key in `.env` as `OMDB_API_KEY`. After catalogs are cached, click **Fetch Metascores** on Setup. Titles with fewer than 100 IMDb votes are treated as unrated.
-4. Install and run:
-
 ```bash
+git clone https://github.com/mikesterific/unwatched-movies.git
+cd unwatched-movies
 npm install
 npx playwright install chromium
+cp auth.example.json auth.json
+cp .env.example .env
+```
+
+Put your TMDB v3 key or v4 read-access token in `auth.json` as `tmdbApiKey`,
+or paste it on the Setup screen. `auth.json` is gitignored.
+
+Optional: set `OMDB_API_KEY` in `.env`. After catalogs are cached, click
+**Fetch Metascores** on Setup. Titles with fewer than 100 IMDb votes stay
+unrated.
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). **Load sample catalog**
+lets you try the UI without TMDB.
 
-## Netflix sign-in (once)
+## Watch history
 
-Same pattern as Job Assistant’s LinkedIn auth: headed Chrome, you finish login / 2FA, session is saved to gitignored `.auth/netflix.json`. No password is passed to the CLI.
+### Netflix
+
+Sign in once in headed Chrome. You finish login and 2FA; the CLI never takes a
+password. The session is saved to gitignored `.auth/netflix.json`.
 
 ```bash
 npm run auth:netflix
 ```
 
-Pick the Netflix profile you want tracked. To attach to Chrome you start yourself:
+Pick the profile you want tracked. Then on Setup click **Refresh watch
+history**. The saved session opens Viewing activity, clicks official
+**Download all**, and imports the CSV.
+
+You can also upload a CSV, or keep a local `NetflixViewingHistory.csv` in the
+project folder (gitignored) and load it from Setup.
+
+To attach to Chrome you start yourself:
 
 ```bash
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
@@ -36,19 +69,59 @@ Pick the Netflix profile you want tracked. To attach to Chrome you start yoursel
 npm run auth:netflix -- --existing
 ```
 
-## Use
+### Prime Video
 
-1. On Setup, click **Refresh watch history**. The saved session opens Viewing activity and clicks official **Download all**, then imports the CSV. You can still upload a CSV or keep `NetflixViewingHistory.csv` in the repo as a fallback. Prime Video: upload the privacy ZIP, or click **Load PrimeVideoViewingHistory.csv** if that file is in `data/uploads/`.
-2. Select Netflix, Prime, Disney+, and/or HBO Max, then **Refresh selected**. Each service is pulled separately from TMDB / JustWatch. If `OMDB_API_KEY` is set, click **Fetch Metascores** to score the movies you already have. That pass does not re-download catalogs.
-3. Confirm leftovers on Review matches.
-4. Browse or export the Unseen list. Filter by service if you want.
+Request your data from Amazon Privacy Central and upload the privacy ZIP (or
+the `Viewing History.csv` inside it). You can also drop
+`PrimeVideoViewingHistory.csv` or `Prime Video.zip` in `data/uploads/` and
+click the load button on Setup.
 
-A matched Netflix title is treated as seen on every service.
+The parser keeps full/feature movies, drops trailers, ads, TV-shaped titles,
+and watches under two minutes, then merges into the same seen list without
+replacing existing Netflix matches.
 
-Watch availability is provided by JustWatch via TMDB. The catalogs are approximations of each US service, not their private inventories.
+## Catalogs and Unseen
 
-## Tests
+1. Select Netflix, Prime Video, Disney+, and/or HBO Max, then **Refresh
+   selected**. Each service is pulled separately from TMDB / JustWatch.
+2. Confirm leftovers on **Review matches**.
+3. Browse or export the Unseen list. Filter by service if you want. **All
+   titles** includes movies you already marked watched.
+
+Watch availability is an approximation of each US service, not a private
+inventory. Attribution: JustWatch via TMDB.
+
+## Development
 
 ```bash
 npm test
+npm run lint
+npm run typecheck
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Privacy
+
+This app is meant to run on your machine. Do not commit:
+
+- `auth.json`, `.env`, `.auth/`
+- `NetflixViewingHistory.csv`, Prime privacy ZIPs
+- `data/*.sqlite*`
+
+The `fixtures/` folder uses fake titles only.
+
+## Legal
+
+Unseen is an independent project. It is not affiliated with, endorsed by, or
+sponsored by Netflix, Amazon, Disney, Warner Bros. Discovery, TMDB, JustWatch,
+or OMDb. Those names are trademarks of their owners.
+
+You are responsible for following each service’s terms when you sign in or
+export your own data. Catalog use must follow
+[TMDB’s terms](https://www.themoviedb.org/documentation/api/terms-of-use) and
+attribution rules.
+
+## License
+
+[MIT](LICENSE)

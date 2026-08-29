@@ -13,8 +13,8 @@ const sans = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: "Unseen on Netflix",
-  description: "US Netflix movies you have not watched, from your official viewing CSV.",
+  title: "Unseen",
+  description: "US streaming movies you have not watched, from your official viewing history.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
