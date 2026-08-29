@@ -18,6 +18,7 @@ export type UnseenMovie = {
   overview: string;
   tmdbUrl: string;
   services: ServiceLabel[];
+  watched: boolean;
 };
 
 export type UnseenPage = {

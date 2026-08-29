@@ -68,6 +68,29 @@ describe("catalog minus watched history", () => {
     ]);
   });
 
+  it("includes watched catalog movies when hideWatched is off", async () => {
+    loadSampleCatalog();
+    await importViewingCsv(simpleCsv, "viewing-activity.csv");
+
+    const all = queryUnseen({
+      hideWatched: false,
+      sort: "title",
+      order: "asc",
+      pageSize: 50,
+    });
+    expect(all.items.map((movie) => movie.title)).toEqual([
+      "Fight Club",
+      "Parasite",
+      "Spider-Man: Into the Spider-Verse",
+      "The Matrix",
+    ]);
+    expect(all.items.find((movie) => movie.title === "The Matrix")?.watched).toBe(true);
+    expect(all.items.find((movie) => movie.title === "Fight Club")?.watched).toBe(false);
+
+    const csv = exportUnseenCsv(undefined, false);
+    expect(csv).toContain("The Matrix");
+  });
+
   it("keeps a manual watched mark when the Netflix CSV is re-imported", async () => {
     loadSampleCatalog();
     markCatalogMovieWatched(550);

@@ -21,6 +21,13 @@ function providersParam(value: string | null): string[] | undefined {
     .filter(Boolean);
 }
 
+function hideWatchedParam(value: string | null): boolean {
+  if (!value) {
+    return true;
+  }
+  return !["0", "false", "off", "no"].includes(value.trim().toLowerCase());
+}
+
 export function GET(request: Request) {
   const url = new URL(request.url);
   const sort = url.searchParams.get("sort") as UnseenSort | null;
@@ -33,6 +40,7 @@ export function GET(request: Request) {
     yearMax: numberParam(url.searchParams.get("yearMax")),
     ratingMin: numberParam(url.searchParams.get("ratingMin")),
     providers: providersParam(url.searchParams.get("providers")),
+    hideWatched: hideWatchedParam(url.searchParams.get("hideWatched")),
     sort: sort ?? undefined,
     order: order === "asc" || order === "desc" ? order : undefined,
     page: numberParam(url.searchParams.get("page")),

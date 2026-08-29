@@ -16,6 +16,7 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
   const [sort, setSort] = useState<UnseenSort>("popularity");
   const [page, setPage] = useState(1);
   const [providers, setProviders] = useState<string[]>([]);
+  const [hideWatched, setHideWatched] = useState(true);
   const [markingId, setMarkingId] = useState<number | null>(null);
 
   function providerQuery(nextProviders: string[]) {
@@ -30,6 +31,7 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
     sort?: UnseenSort;
     page?: number;
     providers?: string[];
+    hideWatched?: boolean;
   }) {
     const nextQ = next.q ?? q;
     const nextGenre = next.genre ?? genre;
@@ -38,6 +40,7 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
     const nextSort = next.sort ?? sort;
     const nextPage = next.page ?? page;
     const nextProviders = next.providers ?? providers;
+    const nextHideWatched = next.hideWatched ?? hideWatched;
     const params = new URLSearchParams({
       page: String(nextPage),
       pageSize: String(PAGE_SIZE),
@@ -49,6 +52,7 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
     if (nextYearMin) params.set("yearMin", nextYearMin);
     if (nextRatingMin) params.set("ratingMin", nextRatingMin);
     if (nextProviders.length) params.set("providers", providerQuery(nextProviders));
+    if (!nextHideWatched) params.set("hideWatched", "0");
     try {
       const response = await fetch(`/api/unseen?${params}`);
       setData((await response.json()) as UnseenPage);
@@ -85,8 +89,12 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
     }
   }
 
-  const exportHref = providers.length
-    ? `/api/unseen/export?providers=${encodeURIComponent(providerQuery(providers))}`
+  const exportParams = new URLSearchParams();
+  if (providers.length) exportParams.set("providers", providerQuery(providers));
+  if (!hideWatched) exportParams.set("hideWatched", "0");
+  const exportQuery = exportParams.toString();
+  const exportHref = exportQuery
+    ? `/api/unseen/export?${exportQuery}`
     : "/api/unseen/export";
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
@@ -94,17 +102,67 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="font-display text-2xl">Movies you have not watched</h2>
+          <h2 className="font-display text-2xl">
+            {hideWatched ? "Movies you have not watched" : "All movies"}
+          </h2>
           <p className="text-sm text-muted">
-            {data.total} titles on selected US services minus titles you have watched.
+            {hideWatched
+              ? `${data.total} titles on selected US services minus titles you have watched.`
+              : `${data.total} titles on selected US services, including titles you have watched.`}
           </p>
         </div>
-        <a
-          href={exportHref}
-          className="rounded-full border border-line px-4 py-2 text-sm text-accent-2 hover:bg-paper"
-        >
-          Export CSV
-        </a>
+        <div className="flex flex-wrap items-center gap-3">
+          <div
+            role="group"
+            aria-label="Watched filter"
+            className="flex rounded-full border border-line p-0.5 text-sm"
+          >
+            <button
+              type="button"
+              aria-pressed={hideWatched}
+              onClick={() => {
+                if (hideWatched) {
+                  return;
+                }
+                setHideWatched(true);
+                setPage(1);
+                void load({ hideWatched: true, page: 1 });
+              }}
+              className={`rounded-full px-4 py-2 transition-colors ${
+                hideWatched
+                  ? "bg-accent text-white"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              Unseen
+            </button>
+            <button
+              type="button"
+              aria-pressed={!hideWatched}
+              onClick={() => {
+                if (!hideWatched) {
+                  return;
+                }
+                setHideWatched(false);
+                setPage(1);
+                void load({ hideWatched: false, page: 1 });
+              }}
+              className={`rounded-full px-4 py-2 transition-colors ${
+                !hideWatched
+                  ? "bg-accent text-white"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              All titles
+            </button>
+          </div>
+          <a
+            href={exportHref}
+            className="rounded-full border border-line px-4 py-2 text-sm text-accent-2 hover:bg-paper"
+          >
+            Export CSV
+          </a>
+        </div>
       </div>
 
       <div className="grid gap-3 rounded-2xl border border-line bg-paper p-4 md:grid-cols-6">
@@ -224,8 +282,10 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
       {data.total === 0 ? (
         <p className="rounded-2xl border border-dashed border-line p-8 text-muted">
           Nothing to show yet. Refresh one or more catalogs and import your
-          Netflix viewing CSV on Setup. If catalogs are loaded and this is empty,
-          every current title is marked watched.
+          Netflix viewing CSV on Setup.
+          {hideWatched
+            ? " If catalogs are loaded and this is empty, every current title is marked watched — switch to All titles to see them."
+            : null}
         </p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -264,8 +324,13 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
                 <p className="mt-2 line-clamp-2 text-xs text-muted">
                   {movie.genres.join(" / ") || "Uncategorized"}
                 </p>
-                {movie.services.length > 0 && (
+                {(movie.watched || movie.services.length > 0) && (
                   <p className="mt-2 flex flex-wrap gap-1">
+                    {movie.watched ? (
+                      <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[11px] text-accent-2">
+                        Watched
+                      </span>
+                    ) : null}
                     {movie.services.map((service) =>
                       service.watchUrl ? (
                         <a
@@ -289,14 +354,16 @@ export function UnseenView({ initialData }: { initialData: UnseenPage }) {
                     )}
                   </p>
                 )}
-                <button
-                  type="button"
-                  disabled={markingId === movie.tmdbId}
-                  onClick={() => void markWatched(movie.tmdbId)}
-                  className="mt-3 self-start rounded-full border border-line px-3 py-1.5 text-xs text-accent-2 hover:bg-paper-2 disabled:opacity-50"
-                >
-                  {markingId === movie.tmdbId ? "Saving…" : "Mark watched"}
-                </button>
+                {movie.watched ? null : (
+                  <button
+                    type="button"
+                    disabled={markingId === movie.tmdbId}
+                    onClick={() => void markWatched(movie.tmdbId)}
+                    className="mt-3 self-start rounded-full border border-line px-3 py-1.5 text-xs text-accent-2 hover:bg-paper-2 disabled:opacity-50"
+                  >
+                    {markingId === movie.tmdbId ? "Saving…" : "Mark watched"}
+                  </button>
+                )}
               </div>
             </li>
           ))}

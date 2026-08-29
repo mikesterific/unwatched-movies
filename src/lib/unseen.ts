@@ -22,6 +22,7 @@ export type UnseenQuery = {
   yearMax?: number;
   ratingMin?: number;
   providers?: string[];
+  hideWatched?: boolean;
   sort?: UnseenSort;
   order?: "asc" | "desc";
   page?: number;
@@ -37,6 +38,7 @@ const SORT_COLUMNS: Record<UnseenSort, string> = {
 
 type UnseenRow = CatalogMovieRow & {
   service_slugs: string | null;
+  watched: number | null;
 };
 
 export function trustedRating(
@@ -88,6 +90,7 @@ function toUnseenMovie(row: UnseenRow): UnseenMovie {
     overview: row.overview,
     tmdbUrl: `https://www.themoviedb.org/movie/${row.tmdb_id}`,
     services: labelsForSlugs(slugs, row.title),
+    watched: Boolean(row.watched),
   };
 }
 
@@ -128,8 +131,12 @@ export function queryUnseen(input: UnseenQuery = {}): UnseenPage {
     };
   }
 
-  const where: string[] = ["w.id IS NULL"];
+  const hideWatched = input.hideWatched !== false;
+  const where: string[] = [];
   const params: Record<string, string | number> = {};
+  if (hideWatched) {
+    where.push("w.id IS NULL");
+  }
 
   const providerPlaceholders = providerIds.map((_, index) => {
     params[`p${index}`] = providerIds[index];
@@ -185,7 +192,8 @@ export function queryUnseen(input: UnseenQuery = {}): UnseenPage {
       `
       SELECT
         c.*,
-        GROUP_CONCAT(DISTINCT s.slug) AS service_slugs
+        GROUP_CONCAT(DISTINCT s.slug) AS service_slugs,
+        MAX(CASE WHEN w.id IS NOT NULL THEN 1 ELSE 0 END) AS watched
       FROM catalog_movies c
       JOIN catalog_availability filter_a ON filter_a.tmdb_id = c.tmdb_id
       JOIN catalog_availability a ON a.tmdb_id = c.tmdb_id
@@ -216,7 +224,7 @@ export function queryUnseen(input: UnseenQuery = {}): UnseenPage {
   ) as UnseenPage;
 }
 
-export function exportUnseenCsv(providers?: string[]): string {
+export function exportUnseenCsv(providers?: string[], hideWatched = true): string {
   const providerIds = providerIdsForQuery(providers);
   if (providerIds.length === 0) {
     return "Title,Year,Genres,Rating,Popularity,Services,TMDB URL,Watch URLs\n";
@@ -227,21 +235,22 @@ export function exportUnseenCsv(providers?: string[]): string {
     params[`p${index}`] = id;
     return `@p${index}`;
   });
+  const hideWatchedSql = hideWatched ? "w.id IS NULL AND " : "";
 
   const rows = getDb()
     .prepare(
       `
       SELECT
         c.*,
-        GROUP_CONCAT(DISTINCT s.slug) AS service_slugs
+        GROUP_CONCAT(DISTINCT s.slug) AS service_slugs,
+        MAX(CASE WHEN w.id IS NOT NULL THEN 1 ELSE 0 END) AS watched
       FROM catalog_movies c
       JOIN catalog_availability filter_a ON filter_a.tmdb_id = c.tmdb_id
       JOIN catalog_availability a ON a.tmdb_id = c.tmdb_id
       JOIN catalog_services s ON s.provider_id = a.provider_id
       LEFT JOIN watched_titles w
         ON w.tmdb_id = c.tmdb_id AND w.status = 'matched'
-      WHERE w.id IS NULL
-        AND filter_a.provider_id IN (${placeholders.join(", ")})
+      WHERE ${hideWatchedSql}filter_a.provider_id IN (${placeholders.join(", ")})
       GROUP BY c.tmdb_id
       ORDER BY c.title COLLATE NOCASE
     `,
